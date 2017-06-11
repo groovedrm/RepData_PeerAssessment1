@@ -1,0 +1,187 @@
+---
+title: "Reproducible Research: Week 1 Project"
+output: html_document
+keep_md: true
+---
+
+## Loading Environment Packages/Etc.
+In the code below, I am loading up environment variables and packages to ensure that the code can be run
+irrespective of the particular modules and packages that are already loaded on my machine.
+```{r environment and library loading, warning=FALSE, message=FALSE}
+is.installed <- function(mypkg){
+  is.element(mypkg, installed.packages()[,1])
+}
+
+if (!is.installed("data.table")){
+  install.packages("data.table")
+}
+
+if (!is.installed("lubridate")){
+  install.packages("lubridate")
+}
+
+if (!is.installed("ggplot2")){
+  install.packages("ggplot2")
+}
+
+if (!is.installed("lattice")){
+  install.packages("lattice")
+}
+
+if (!is.installed("knitr")){
+  install.packages("knitr")
+}
+
+library(data.table)
+library(lubridate)
+library(ggplot2)
+library(lattice)
+library(knitr)
+```
+
+## Loading and preprocessing the data
+In this step, I am loading up the data and assuming that it has already been unpacked via ZIP extraction or 
+some other mechanism. The assignment did not require us to add code to specifically unzip the file.  
+**Note** The code to deal with whether a given day of the week is a weekend or a weekday is used from the start.
+```{r load and process data, warning=FALSE, message=FALSE}
+activityData <- read.csv('activity.csv', stringsAsFactors = FALSE)
+activityData$date <- as.POSIXct(as.Date(activityData$date), format = "%Y-%M-%D")
+activityFrame <- data.frame(Date = activityData$date,
+                              WeekDay = tolower(weekdays(activityData$date)),
+                              Steps = activityData$steps,
+                              interval = activityData$interval
+                            )
+
+# Code below determines weekday/weekend distinction 
+activityFrame$DayType = ifelse(activityFrame$WeekDay == "saturday" | activityFrame$WeekDay == "sunday", "Weekend", "Weekday")
+rm(activityData) # <-- Removing the data to save some space
+```
+
+# Calculate Total Number of Steps Per Day
+In this block, I calculate the total number of steps per day and print the result to the resulting 
+document. My original code generates PNG files; however, in this case, I chose to print the 
+screen for the purpose of using RMarkdown and Knitr
+```{r calculate steps per day, warning=FALSE, message=FALSE}
+stepsByDay <- aggregate(activityFrame$Steps, by=list(activityFrame$Date), FUN = sum, na.rm = TRUE)
+names(stepsByDay) <- c("Day", "TotalSteps")
+p1 <- hist(stepsByDay$TotalSteps, 
+     xlab = "Total Steps", 
+     ylab = "Frequency of Steps", 
+     main = "Histogram - Total Steps By Day",
+     ylim = range(1:30),
+     col = "Light Grey"
+)
+```
+
+```{r workaround_plot1, warning=FALSE, echo=FALSE, message=FALSE}
+p1
+```
+
+# Calculate Mean/Median Of Steps Per Day
+Below we extract the mean and median steps per day as requested and print them to the screen
+```{r print mean/median steps per day, warning=FALSE, message=FALSE}
+stepsmean <- mean(stepsByDay$TotalSteps)
+stepsmedian <- median(stepsByDay$TotalSteps)
+```
+**Mean:** `r round(stepsmean, digits=2)`  
+**Median:** `r stepsmedian`  
+
+# What is the average daily activity pattern?
+The code below creates a plot describing the daily activity pattern
+```{r daily activity pattern plot, warning=FALSE, message=FALSE}
+intervalTimeSeries <- aggregate(activityFrame$Steps, by=list(activityFrame$interval), FUN = mean, na.rm = TRUE)
+names(intervalTimeSeries) <- c("Interval","AverageSteps")
+p2 <- plot(x = intervalTimeSeries$Interval,
+     y = intervalTimeSeries$AverageSteps,
+     lwd = 4,
+     type = "l",
+     xlab = "Interval", 
+     ylab = "Average Steps", 
+     main = "Time Series -- Average Steps By Interval",
+     col = "Black"
+)
+```
+`r p2`
+
+## Find The Interval With Largest Max Value
+Below I find the interval that has the largest max average steps value and print to the screen.
+```{r calculate which interval has the largest max value, warning=FALSE, message=FALSE}
+# Find The Interval Corresponding To Max Mean
+maxPosition <- which(intervalTimeSeries$AverageSteps == max(intervalTimeSeries$AverageSteps))
+intervalValue = intervalTimeSeries[maxPosition, 1]
+```
+**Interval With Largest Max Value:** `r intervalValue`
+
+## Imputing missing values
+The code below is used to identify missing values and imput them
+```{r calculate and imput the missing values, warning=FALSE, message=FALSE}
+# Find Number Of NA Values
+naCount <- sum(is.na(activityFrame$Steps))
+
+# Get Positions of NA Values
+naPositions <- which(is.na(activityFrame$Steps))
+
+# Imputed Values Creation
+replacementVector <- rep(mean(activityFrame$Steps, na.rm=TRUE), times=length(naPositions))
+activityFrame[naPositions, "Steps"] <- replacementVector
+```
+
+## Now plot everything again, this time with the values there.
+The plot below looks at the total steps using the same basic histogram design, but
+this time with the imputed data
+```{r plot3, warning=FALSE, echo=FALSE}
+# Now compute all the numbers again
+revisedStepsByDay <- aggregate(activityFrame$Steps, by=list(activityFrame$Date), FUN = sum, na.rm = TRUE)
+names(revisedStepsByDay) <- c("Day", "TotalSteps")
+p3 <- hist(revisedStepsByDay$TotalSteps, 
+     xlab = "Total Steps", 
+     ylab = "Frequency of Steps", 
+     main = "Histogram - Total Steps By Day, with Imputed Data",
+     ylim = range(1:40),
+     col = "Light Grey"
+)
+```
+
+```{r workaround_plot3, warning=FALSE, echo=FALSE, message=FALSE}
+p3
+```
+
+## What Are The Revised Mean And Median
+After we have replaced the NA with our calculated value, what are the values? The code
+below calculates those values
+```{r revised_mean_median, echo=FALSE, warning=FALSE}
+revised_stepsmean <- mean(revisedStepsByDay$TotalSteps)
+revised_stepsmedian <- median(revisedStepsByDay$TotalSteps)
+```
+**Revised Mean:** `r format(revised_stepsmean, digits=2)`    
+**Revised Median:** `r format(revised_stepsmedian, digit=2)`   
+
+## Activity Pattern Differences Between Weekends and Weekdays
+Below I do some processing to come up with the steps by weekend/weekday. Also, for some clarity and ease of plotting,
+I created two sub-tables "weekend" and "weekday" that allow for very straightforward plotting using R's base
+plotting system
+```{r make panel plot for weekday/weekend, warning=FALSE, message=FALSE}
+# Now plot the average across day type
+daytypeTable <- aggregate(activityFrame$Steps, 
+                          by=list(activityFrame$DayType, activityFrame$WeekDay, activityFrame$interval), 
+                          FUN = mean, na.rm = TRUE)
+
+names(daytypeTable) <- c("DayType", "DayOfWeek", "Interval", "AverageSteps")
+weekend <- subset(daytypeTable, DayType == "Weekend")
+weekday <- subset(daytypeTable, DayType == "Weekday")
+
+par(mfrow=c(2,1))
+p4 <- plot(weekend$Interval, weekend$AverageSteps, type="l", lwd=2, 
+            col="Black", xlim=range(0:2500), ylim=range(0:300),
+            xlab="Interval", ylab="Average Steps",
+            main="Average Steps Over Intervals -- Weekend Days"
+)
+
+p4 <- p4 + plot(weekday$Interval, weekday$AverageSteps, type="l", lwd=2, 
+                col="Black", xlim=range(0:2500), ylim=range(0:300),
+                xlab="Interval", ylab="Average Steps",
+                main="Average Steps Over Intervals -- Weekday Days"
+)
+```
+
+`r p4`

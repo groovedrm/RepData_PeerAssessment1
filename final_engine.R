@@ -1,3 +1,4 @@
+
 # Reproducible Research Week 2 Project
 
 # Setting Up Environment
@@ -43,6 +44,7 @@ activityFrame <- data.frame(Date = activityData$date,
 activityFrame$DayType = ifelse(activityFrame$WeekDay == "saturday" | activityFrame$WeekDay == "sunday", "Weekend", "Weekday")
 rm(activityData)
 
+
 # Get Sum Of Days And Plot
 stepsByDay <- aggregate(activityFrame$Steps, by=list(activityFrame$Date), FUN = sum, na.rm = TRUE)
 names(stepsByDay) <- c("Day", "TotalSteps")
@@ -87,7 +89,7 @@ naCount <- sum(is.na(activityFrame$Steps))
 # Get Positions of NA Values
 naPositions <- which(is.na(activityFrame$Steps))
 
-# Replacement Values Creation
+# Imputed Values Creation
 replacementVector <- rep(mean(activityFrame$Steps, na.rm=TRUE), times=length(naPositions))
 activityFrame[naPositions, "Steps"] <- replacementVector
 
