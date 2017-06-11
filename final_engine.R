@@ -20,9 +20,14 @@ if (!is.installed("ggplot2")){
   install.packages("ggplot2")
 }
 
+if (!is.installed("lattice")){
+  install.packages("lattice")
+}
+
 library(data.table)
 library(lubridate)
 library(ggplot2)
+library(lattice)
 
 # Clear Workspace
 rm(list=ls())
@@ -35,7 +40,7 @@ activityFrame <- data.frame(Date = activityData$date,
                               Steps = activityData$steps,
                               interval = activityData$interval
                             )
-activityFrame$DayType = ifelse(activityFrame$WeekDay == "Saturday" | activityFrame$WeekDay == "Sunday", "Weekend", "Weekday")
+activityFrame$DayType = ifelse(activityFrame$WeekDay == "saturday" | activityFrame$WeekDay == "sunday", "Weekend", "Weekday")
 rm(activityData)
 
 # Get Sum Of Days And Plot
@@ -103,3 +108,15 @@ dev.off()
 revised_stepsmean <- mean(revisedStepsByDay$TotalSteps)
 revised_stepsmedian <- median(revisedStepsByDay$TotalSteps)
 
+# Now plot the average across day type
+daytypeTable <- aggregate(activityFrame$Steps, by=list(activityFrame$DayType, activityFrame$WeekDay, activityFrame$interval), FUN = mean, na.rm = TRUE)
+names(daytypeTable) <- c("DayType", "DayOfWeek", "Interval", "AverageSteps")
+weekend <- subset(daytypeTable, DayType == "Weekend")
+weekday <- subset(daytypeTable, DayType == "Weekday")
+
+png("plot_averagebyinterval_daytype.png", width=540, height=540)
+par(mfrow=c(2,1))
+plot(weekend$Interval, weekend$AverageSteps, type="l", lwd=2, col="Black", xlim=range(0:2500), ylim=range(0:300))
+plot(weekday$Interval, weekday$AverageSteps, type="l", lwd=2, col="Black", xlim=range(0:2500), ylim=range(0:300))
+
+dev.off()
